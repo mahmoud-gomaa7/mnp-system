@@ -1,0 +1,309 @@
+{
+  "info": {
+    "name": "MNP System API",
+    "_postman_id": "c5d8e0d4-7c45-4b3c-9c2f-3c6f21f0a001",
+    "description": "MNP API tests. Uses the assignment's mock organization header. Run workflow requests in order. Data persists in MySQL, so repeat runs may require checking current phone ownership and pending requests.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "organization",
+      "value": "orange"
+    },
+    {
+      "key": "phoneLookup",
+      "value": "01012345678"
+    },
+    {
+      "key": "phoneForAccept",
+      "value": "01112345678"
+    },
+    {
+      "key": "phoneForReject",
+      "value": "01012345671"
+    },
+    {
+      "key": "acceptRequestId",
+      "value": ""
+    },
+    {
+      "key": "rejectRequestId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Phone Lookup",
+      "item": [
+        {
+          "name": "Lookup phone number",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "organization",
+                "value": "{{organization}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/phone-numbers/{{phoneLookup}}",
+            "description": "Returns phone status and current operator."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Response contains phone details', function () { const b=pm.response.json(); pm.expect(b).to.have.property('phoneNumber'); pm.expect(b).to.have.property('status'); pm.expect(b).to.have.property('currentOperator'); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Create and Accept Workflow",
+      "description": "Run requests in order. Assumes 01112345678 currently belongs to Etisalat and has no pending request.",
+      "item": [
+        {
+          "name": "1 - Create request as Orange",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "organization",
+                "value": "orange"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/porting-requests",
+            "description": "Creates a request. Expected PENDING.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNumber\": \"{{phoneForAccept}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Request created', function () { pm.expect(pm.response.code).to.be.oneOf([200,201]); });",
+                  "const b=pm.response.json(); if (b.id !== undefined) pm.collectionVariables.set('acceptRequestId', String(b.id));",
+                  "pm.test('Status is PENDING', function () { pm.expect(b.status).to.eql('PENDING'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2 - Duplicate pending request should return 409",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "organization",
+                "value": "orange"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/porting-requests",
+            "description": "Expected 409 Conflict.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNumber\": \"{{phoneForAccept}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Duplicate request returns 409', function () { pm.response.to.have.status(409); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3 - Recipient cannot accept",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "organization",
+                "value": "orange"
+              }
+            ],
+            "url": "{{baseUrl}}/api/porting-requests/{{acceptRequestId}}/accept",
+            "description": "Expected 403 Forbidden."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Recipient cannot accept', function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4 - Donor accepts request",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "organization",
+                "value": "etisalat"
+              }
+            ],
+            "url": "{{baseUrl}}/api/porting-requests/{{acceptRequestId}}/accept",
+            "description": "Expected status ACCEPTED."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Donor accepts request', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Status is ACCEPTED', function () { pm.expect(pm.response.json().status).to.eql('ACCEPTED'); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Reject Workflow",
+      "description": "Run in order. Assumes 01012345671 currently belongs to Orange and has no pending request.",
+      "item": [
+        {
+          "name": "1 - Create request as Vodafone",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "organization",
+                "value": "vodafone"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/porting-requests",
+            "description": "Creates a request for an Orange-held number.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNumber\": \"{{phoneForReject}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Request created', function () { pm.expect(pm.response.code).to.be.oneOf([200,201]); });",
+                  "const b=pm.response.json(); if (b.id !== undefined) pm.collectionVariables.set('rejectRequestId', String(b.id));",
+                  "pm.test('Status is PENDING', function () { pm.expect(b.status).to.eql('PENDING'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2 - Donor rejects request",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "organization",
+                "value": "orange"
+              }
+            ],
+            "url": "{{baseUrl}}/api/porting-requests/{{rejectRequestId}}/reject",
+            "description": "Expected status REJECTED."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Donor rejects request', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Status is REJECTED', function () { pm.expect(pm.response.json().status).to.eql('REJECTED'); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Request Listing",
+      "item": [
+        {
+          "name": "List requests with pagination",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "organization",
+                "value": "{{organization}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/porting-requests?page=0&size=20",
+            "description": "Returns requests visible to the selected operator."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Response contains pagination fields', function () { const b=pm.response.json(); pm.expect(b).to.have.property('content'); pm.expect(b).to.have.property('totalElements'); pm.expect(b).to.have.property('totalPages'); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

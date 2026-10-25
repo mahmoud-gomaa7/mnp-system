@@ -1,0 +1,214 @@
+<div class="app-shell">
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">TELECOM MANAGEMENT</p>
+      <h1>Mobile Number Portability</h1>
+      <p class="subtitle">Manage number transfers between mobile operators.</p>
+    </div>
+
+    <div class="operator-picker">
+      <label for="operator">Acting operator</label>
+      <select id="operator" name="operator" [(ngModel)]="selectedOperator" (ngModelChange)="onOperatorChange()">
+        <option value="">Select an operator</option>
+        @for (operator of operators; track operator) {
+        <option [value]="operator">{{ operator | titlecase }}</option>
+        }
+      </select>
+    </div>
+  </header>
+
+  @if (!selectedOperator) {
+  <section class="welcome-panel">
+    <div class="welcome-icon">↗</div>
+    <h2>Welcome to MNP</h2>
+    <p>Select an operator to view requests and manage number portability.</p>
+  </section>
+  } @else {
+  <main>
+
+    <section class="panel">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">NEW TRANSFER</p>
+          <h2>Create a porting request</h2>
+        </div>
+      </div>
+
+      <form (ngSubmit)="createRequest()" #requestForm="ngForm">
+        <div class="form-row">
+          <div class="field">
+            <label for="phoneNumber">Phone number</label>
+            <input id="phoneNumber" name="phoneNumber" type="tel" [(ngModel)]="phoneNumber" required
+              pattern="01[012][0-9]{8}" maxlength="11" placeholder="e.g. 01012345678" />
+            <small>Enter an 11-digit Egyptian mobile number.</small>
+          </div>
+
+          <button type="submit" [disabled]="requestForm.invalid || creatingRequest" class="primary-button">
+            {{ creatingRequest ? 'Creating...' : 'Create request' }}
+          </button>
+        </div>
+      </form>
+
+      @if (errorMessage) {
+      <p class="alert error" role="alert">{{ errorMessage }}</p>
+      }
+    </section>
+
+    <section class="panel">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">NETWORK STATUS</p>
+          <h2>Look up a phone number</h2>
+        </div>
+      </div>
+
+      <form (ngSubmit)="lookupPhoneNumber()" #lookupForm="ngForm">
+        <div class="form-row">
+          <div class="field">
+            <label for="lookupNumber">Phone number</label>
+            <input id="lookupNumber" name="lookupNumber" type="tel" [(ngModel)]="lookupNumber" required
+              pattern="01[012][0-9]{8}" maxlength="11" placeholder="Enter a phone number" />
+          </div>
+
+          <button type="submit" [disabled]="lookupForm.invalid" class="secondary-button">
+            Check number
+          </button>
+        </div>
+      </form>
+
+      @if (phoneInfo) {
+      <div class="lookup-result">
+        <div>
+          <span class="result-label">Phone number</span>
+          <strong>{{ phoneInfo.phoneNumber }}</strong>
+        </div>
+        <div>
+          <span class="result-label">Status</span>
+          <strong>{{ phoneInfo.status }}</strong>
+        </div>
+        <div>
+          <span class="result-label">Current operator</span>
+          <strong>{{ phoneInfo.currentOperator | titlecase }}</strong>
+        </div>
+      </div>
+      } @if (lookupError) {
+      <p class="alert error">{{ lookupError }}</p>
+      }
+    </section>
+
+    @if (successMessage) {
+    <p class="alert success">{{ successMessage }}</p>
+    }
+
+    <section class="panel">
+      <div class="section-heading request-heading">
+        <div>
+          <p class="eyebrow">PORTABILITY ACTIVITY</p>
+          <h2>Porting requests</h2>
+          <p class="subtitle">
+            Requests visible to {{ selectedOperator | titlecase }}.
+          </p>
+        </div>
+
+        <button type="button" class="secondary-button" (click)="loadRequests()" [disabled]="loading">
+          {{ loading ? 'Refreshing...' : 'Refresh' }}
+        </button>
+      </div>
+      @if (requestActionError) {
+      <p class="alert error" role="alert">{{ requestActionError }}</p>
+      }
+      @if (loadRequestsError) {
+      <p class="alert error" role="alert">
+        {{ loadRequestsError }}
+      </p>
+      }
+      @if (loading) {
+      <p class="empty-state">Loading requests...</p>
+      } @else if (requests.length === 0) {
+      <p class="empty-state">No visible requests found.</p>
+      } @else {
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Phone number</th>
+              <th>Donor</th>
+              <th>Recipient</th>
+              <th>Status</th>
+              <th>Created</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (request of requests; track request.id) {
+            <tr>
+              <td>#{{ request.id }}</td>
+              <td class="phone-cell">{{ request.phoneNumber }}</td>
+              <td>{{ request.donorOperator | titlecase }}</td>
+              <td>{{ request.recipientOperator | titlecase }}</td>
+              <td>
+                <span class="status" [class.pending]="request.status === 'PENDING'"
+                  [class.accepted]="request.status === 'ACCEPTED'" [class.rejected]="request.status === 'REJECTED'"
+                  [class.cancelled]="request.status === 'CANCELLED'">
+                  {{ request.status }}
+                </span>
+              </td>
+              <td>{{ request.createdAt | date:'short' }}</td>
+              <td>
+                @if ( request.status === 'PENDING' && request.donorOperator ===
+                selectedOperator ) {
+                <div class="actions">
+                  <button type="button" class="accept-button" [disabled]="processingRequestIds.has(request.id)"
+                    (click)="decideRequest(request.id, true)">
+                    {{ processingRequestIds.has(request.id) ? 'Processing...' : 'Accept' }}
+                  </button>
+
+                  <button type="button" class="reject-button" [disabled]="processingRequestIds.has(request.id)"
+                    (click)="decideRequest(request.id, false)">
+                    {{ processingRequestIds.has(request.id) ? 'Processing...' : 'Reject' }}
+                  </button>
+                </div>
+                } @else {
+                <span class="muted">—</span>
+                }
+              </td>
+            </tr>
+            }
+          </tbody>
+        </table>
+
+      </div>
+      }
+
+      @if (!loading && totalElements > 0) {
+      <div class="pagination">
+        <p class="pagination-info">
+          Showing
+          {{ currentPage * pageSize + 1 }}–{{ currentPage * pageSize + requests.length }}
+          of {{ totalElements }} requests
+        </p>
+
+        <div class="pagination-controls">
+          <button type="button" class="secondary-button" (click)="previousPage()"
+            [disabled]="currentPage === 0 || loading">
+            Previous
+          </button>
+
+          <span class="page-info">
+            Page {{ currentPage + 1 }} of {{ totalPages }}
+          </span>
+
+          <button type="button" class="secondary-button" (click)="nextPage()"
+            [disabled]="currentPage + 1 >= totalPages || loading">
+            Next
+          </button>
+        </div>
+      </div>
+      }
+    </section>
+  </main>
+  }
+
+  <footer>MNP Demo · Operator authentication is simulated.</footer>
+</div>

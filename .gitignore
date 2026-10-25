@@ -1,0 +1,22 @@
+﻿# Maven
+backend/target/
+
+# Angular
+frontend/node_modules/
+frontend/dist/
+frontend/.angular/
+
+# Environment variables and secrets
+.env
+**/.env
+
+# IntelliJ IDEA
+.idea/
+*.iml
+
+# Operating system
+.DS_Store
+Thumbs.db
+
+# Generated Maven output
+/backend/effective-pom
