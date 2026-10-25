@@ -22,13 +22,25 @@ Install the following:
 
 ```text
 mnp-system/
-├── backend/       # Spring Boot REST API
-├── frontend/      # Angular web application
-├── database/      # Database schema and seed data
+├── backend/
+│   ├── src/
+│   ├── Dockerfile
+│   └── pom.xml
+├── database/
+│   └── schema.sql
+├── frontend/
+│   ├── src/
+│   ├── package.json
+│   └── angular.json
+├── postman/
+│   └── MNP_System_API.postman_collection.json
+├── .env                  # Local environment variables (not committed)
+├── .gitignore
 ├── docker-compose.yml
-├── .env           # Local database credentials (not committed)
 └── README.md
 ```
+
+
 
 ## Configuration
 
@@ -257,3 +269,9 @@ Test the following scenarios through the API or frontend:
 ## Notes
 
 The `organization` header is a mock authentication mechanism for this task. Do not use it as a replacement for real authentication and authorization in production.
+
+## Versioning
+
+The initial development release is tagged `v1.0.0-dev`.
+
+Subsequent fixes and releases follow [Semantic Versioning (SemVer)]
